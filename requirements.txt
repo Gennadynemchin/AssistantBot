@@ -1,0 +1,9 @@
+aiohttp==3.10.10
+boto3==1.35.57
+pillow==11.0.0
+python-dotenv==1.0.1
+python-telegram-bot==21.7
+requests==2.32.3
+tenacity==9.0.0
+urllib3==2.2.3
+ydb[yc]==3.18.8
