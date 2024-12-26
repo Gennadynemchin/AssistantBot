@@ -120,7 +120,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     token = ART_TOKEN.split(" ")[1]
     user_input = " ".join(context.args)
     promt_response = await promt_request(FOLDER_ID, token, "yandexgpt", user_input)
-    await update.message.reply_text(promt_response)
+    await update.message.reply_text(promt_response, parse_mode="Markdown")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
