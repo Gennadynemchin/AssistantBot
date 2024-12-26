@@ -4,7 +4,7 @@ import re
 import aiohttp
 import urllib.parse
 import random
-from ydb import QuerySessionPool
+import ydb
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -19,8 +19,9 @@ from foundation_models_api.stt import (
     parse_recognition_result,
 )
 from foundation_models_api.yandex_art import send_prompt, get_image
+from foundation_models_api.ml_sdk import promt_request
 from botlogger import logger
-from settings import s3, pool
+from settings import s3, driver
 
 
 RECOGNIZE_TOKEN = os.getenv("RECOGNIZE_TOKEN")
@@ -69,9 +70,9 @@ async def create_comment(issue_key: str, reply_text: str, user: str):
 
 
 # Обновление chat_id в YDB
-async def update_chatid(pool: QuerySessionPool, telegram: str, new_values: str):
-    with pool:
-        pool.execute_with_retries(
+async def update_chatid(driver, telegram: str, new_values: str):
+    async with ydb.aio.QuerySessionPool(driver) as pool:
+        await pool.execute_with_retries(
             f"""
             UPDATE users SET {new_values} WHERE telegram = "{telegram}";
             """
@@ -114,11 +115,19 @@ async def art_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.message.reply_photo(image)
 
 
+@user_check()
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    token = ART_TOKEN.split(" ")[1]
+    user_input = " ".join(context.args)
+    promt_response = await promt_request(FOLDER_ID, token, "yandexgpt", user_input)
+    await update.message.reply_text(promt_response)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.message.from_user.username
     chat_id = update.message.chat_id
     query = f"tg_chat_id = {chat_id}"
-    message = await update_chatid(pool, user, query)
+    message = await update_chatid(driver, user, query)
     await update.message.reply_text(message)
 
 
@@ -143,6 +152,7 @@ def main() -> None:
     )
     application.add_handler(MessageHandler(filters.REPLY, reply_handler))
     application.add_handler(CommandHandler("art", art_handler))
+    application.add_handler(CommandHandler("text", text_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

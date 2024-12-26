@@ -6,11 +6,15 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join("credentials", ".env"))
 
+
 S3KEY_ID = os.getenv("S3KEY_ID")
 S3KEY = os.getenv("S3KEY")
 YDB_ENDPOINT = os.getenv("YDB_ENDPOINT")
 YDB_DATABASE = os.getenv("YDB_DATABASE")
 SA_KEY_FILE = os.getenv("SA_KEY_FILE")
+
+ART_TOKEN = os.getenv("ART_TOKEN")
+FOLDER_ID = os.getenv("FOLDER_ID")
 
 
 session = boto3.session.Session()
@@ -23,11 +27,13 @@ s3 = session.client(
 )
 
 
-driver = ydb.Driver(
+driver = ydb.aio.Driver(
     endpoint=YDB_ENDPOINT,
     database=YDB_DATABASE,
     credentials=ydb.iam.ServiceAccountCredentials.from_file(SA_KEY_FILE),
 )
 
 
-pool = ydb.QuerySessionPool(driver)
+if __name__ == "__main__":
+    pass
+    # pool = ydb.aio.QuerySessionPool(driver)
