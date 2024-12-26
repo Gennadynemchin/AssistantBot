@@ -7,3 +7,4 @@ requests==2.32.3
 tenacity==9.0.0
 urllib3==2.2.3
 ydb[yc]==3.18.8
+yandex-cloud-ml-sdk==0.2.0
