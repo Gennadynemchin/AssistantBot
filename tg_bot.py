@@ -148,9 +148,19 @@ async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(f"Комментарий к задаче {issue_key} отправлен")
 
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "Команды бота:\n"
+        "/start - зпуск бота\n"
+        "/art - запрос на генерацию картинки. Через пробел от команды пишется запрос\n"
+        "/text - запрос на генерацию текста. Через пробел от команды пишется запрос\n"
+    )
+
+
 def main() -> None:
     application = Application.builder().token(TG_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(
         MessageHandler(filters.VOICE & ~filters.COMMAND, voice_handler)
     )
