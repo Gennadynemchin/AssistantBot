@@ -6,6 +6,7 @@ import urllib.parse
 import random
 import ydb
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -120,7 +121,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     token = ART_TOKEN.split(" ")[1]
     user_input = " ".join(context.args)
     promt_response = await promt_request(FOLDER_ID, token, "yandexgpt", user_input)
-    await update.message.reply_text(promt_response, parse_mode="Markdown")
+    try:
+        await update.message.reply_text(promt_response, parse_mode="Markdown")
+    except BadRequest:
+        await update.message.reply_text(promt_response, parse_mode="HTML")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
