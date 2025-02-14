@@ -3,8 +3,10 @@ import io
 import re
 import aiohttp
 import urllib.parse
+import json
 import random
 import ydb
+from functools import partial
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import (
@@ -21,7 +23,7 @@ from foundation_models_api.stt import (
 )
 from foundation_models_api.yandex_art import send_prompt, get_image
 from foundation_models_api.ml_sdk import promt_request
-from botlogger import logger
+from botlogger.logger import logger
 from settings import s3, driver
 
 
@@ -31,6 +33,7 @@ BUCKET_NAME = os.getenv("BUCKET_NAME")
 BUCKET_FOLDER = os.getenv("BUCKET_FOLDER")
 ORGID = os.getenv("ORGID")
 OAUTH_TOKEN = os.getenv("OAUTH_TOKEN")
+HEADER = os.getenv("HEADER")
 TG_TOKEN = os.getenv("TG_TOKEN")
 FOLDER_ID = os.getenv("FOLDER_ID")
 INCLUDED_TG_LOGINS = os.getenv("INCLUDED_TG_LOGINS")
@@ -51,35 +54,80 @@ def user_check():
     return decorator
 
 
-# создает коммент в задаче по реплаю Telegram-пользователя
-async def create_comment(issue_key: str, reply_text: str, user: str):
-    async with aiohttp.ClientSession() as session:
-        url = f"https://api.tracker.yandex.net/v2/issues/{issue_key}/comments"
-        headers = {
-            "X-Cloud-Org-Id": ORGID,
-            "Authorization": OAUTH_TOKEN,
-        }
-        data = {
-            "text": f"Пользователь {user} оставил комментарий к задаче через Telegram:\n\n{reply_text}"
-        }
-        async with session.post(url, headers=headers, json=data) as response:
-            if response.status == 200:
-                result = await response.json()
+async def create_comment(
+    issue_key: str,
+    reply_text: str,
+    user: str,
+    header: str,
+    orgid: str,
+    oauth_token: str,
+):
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.tracker.yandex.net/v2/issues/{issue_key}/comments"
+            headers = {
+                header: orgid,
+                "Authorization": oauth_token,
+            }
+            data = {
+                "text": f"Пользователь {user} оставил комментарий к задаче через Telegram:\n\n{reply_text}"
+            }
+            logger.info("Session for send comment has been prepared")
+            try:
+                async with session.post(url, headers=headers, json=data) as response:
+                    if response.status == 201:
+                        try:
+                            result = await response.json()
+                            logger.info("201 OK")
+                            return result
+                        except (aiohttp.ContentTypeError, json.JSONDecodeError) as e:
+                            result = {"error": f"Response parsing failed: {str(e)}"}
+                            logger.error(result)
+                            return result
+                    else:
+                        try:
+                            error_body = await response.text()
+                            logger.error("Got error %s from server", error_body)
+                            return {
+                                "error": f"API request failed (Status {response.status})",
+                                "details": error_body,
+                            }
+                        except Exception as e:
+                            result = {
+                                "error": f"Failed to read error response: {str(e)}"
+                            }
+                            logger.error(result)
+                            return result
+            except aiohttp.ClientError as e:
+                result = {"error": f"Network error occurred: {str(e)}"}
+                logger.error(result)
                 return result
-            else:
-                return {"error": f"Request failed with status {response.status}"}
+
+    except Exception as e:
+        result = {"error": f"Unexpected error in comment creation: {str(e)}"}
+        logger.error(result)
+        return result
 
 
 # Обновление chat_id в YDB
 async def update_chatid(driver, telegram: str, new_values: str):
     async with ydb.aio.QuerySessionPool(driver) as pool:
-        await pool.execute_with_retries(
+        select = await pool.execute_with_retries(
             f"""
-            UPDATE users SET {new_values} WHERE telegram = "{telegram}";
-            """
+                SELECT * FROM users WHERE telegram = "{telegram}";
+                """
         )
-        message = "Hello! Your chat_id has been saved to the database"
-        return message
+        try:
+            selected_user = select[0].rows[0]
+            await pool.execute_with_retries(
+                f"""
+                UPDATE users SET {new_values} WHERE telegram = "{telegram}";
+            """
+            )
+            message = f"Привет, {telegram}! Твой chat_id успешно обновлен"
+        except IndexError:
+            message = f"Пользователь {telegram} не найден в базе данных"
+    return message
 
 
 @user_check()
@@ -131,21 +179,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.message.from_user.username
     chat_id = update.message.chat_id
     query = f"tg_chat_id = {chat_id}"
-    message = await update_chatid(driver, user, query)
+    try:
+        message = await update_chatid(driver, user, query)
+    except Exception as e:
+        message = f"Привет, {user}!\n\nПроизошла ошибка: {str(e)}"
     await update.message.reply_text(message)
 
 
 # хэндлер для реплаев на ссылку с задачей от бота
-async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def reply_handler(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    header: str,
+    orgid: str,
+    oauth_token: str,
+) -> None:
     url_regex = r"(https?://[^\s]+)"
     user = update.message.from_user.username
     original_message = update.message.reply_to_message.text
-    url = re.findall(url_regex, original_message)[0]
-    parsed_url = urllib.parse.urlparse(url)
-    issue_key = str(parsed_url[2]).replace("/", "")
-    reply_text = update.message.text
-    await create_comment(issue_key, reply_text, user)
-    await update.message.reply_text(f"Комментарий к задаче {issue_key} отправлен")
+    try:
+        url = re.findall(url_regex, original_message)[0]
+        parsed_url = urllib.parse.urlparse(url)
+        issue_key = str(parsed_url[2]).replace("/", "")
+        reply_text = update.message.text
+        created_comment = await create_comment(
+            issue_key, reply_text, user, header, orgid, oauth_token
+        )
+        if created_comment.get("error") is None:
+            await update.message.reply_text(
+                f"Комментарий к задаче {issue_key} отправлен"
+            )
+            logger.info("Comment created for issue %s by %s", issue_key, user)
+        else:
+            error = created_comment.get("error", "Unknown error")
+            await update.message.reply_text(
+                f"Произошло досадное недоразумение. Комментарий не отправлен"
+            )
+            logger.error("Comment creation failed for %s: %s", issue_key, error)
+    except IndexError:
+        message = "Не удалось найти ссылку на задачу в ответе на сообщение"
+        await update.message.reply_text(message)
+        logger.error(message)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -161,10 +235,17 @@ def main() -> None:
     application = Application.builder().token(TG_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+
+    application.add_handler(
+        MessageHandler(
+            filters.REPLY,
+            partial(reply_handler, header=HEADER, orgid=ORGID, oauth_token=OAUTH_TOKEN),
+        )
+    )
+
     application.add_handler(
         MessageHandler(filters.VOICE & ~filters.COMMAND, voice_handler)
     )
-    application.add_handler(MessageHandler(filters.REPLY, reply_handler))
     application.add_handler(CommandHandler("art", art_handler))
     application.add_handler(CommandHandler("text", text_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
