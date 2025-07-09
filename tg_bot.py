@@ -168,7 +168,8 @@ async def art_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     token = ART_TOKEN.split(" ")[1]
     user_input = " ".join(context.args)
-    promt_response = await promt_request(FOLDER_ID, token, "yandexgpt", user_input)
+    model_type = update.message.text.split()[0].lstrip('/')
+    promt_response = await promt_request(FOLDER_ID, token, model_type, user_input)
     try:
         await update.message.reply_text(promt_response, parse_mode="Markdown")
     except BadRequest:
@@ -248,6 +249,7 @@ def main() -> None:
     )
     application.add_handler(CommandHandler("art", art_handler))
     application.add_handler(CommandHandler("text", text_handler))
+    application.add_handler(CommandHandler("llama", text_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
