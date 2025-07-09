@@ -166,10 +166,14 @@ async def art_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 @user_check()
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    models = {
+                "y": "yandexgpt",
+                "l": "llama"
+            }
     token = ART_TOKEN.split(" ")[1]
     user_input = " ".join(context.args)
     model_type = update.message.text.split()[0].lstrip('/')
-    promt_response = await promt_request(FOLDER_ID, token, model_type, user_input)
+    promt_response = await promt_request(FOLDER_ID, token, models.get(model_type), user_input)
     try:
         await update.message.reply_text(promt_response, parse_mode="Markdown")
     except BadRequest:
@@ -228,7 +232,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Команды бота:\n"
         "/start - зпуск бота\n"
         "/art - запрос на генерацию картинки. Через пробел от команды пишется запрос\n"
-        "/text - запрос на генерацию текста. Через пробел от команды пишется запрос\n"
+        "/y - запрос на генерацию текста. Через пробел от команды пишется запрос. YandexGPT Pro\n"
+        "/l - запрос на генерацию текста. Через пробел от команды пишется запрос. Llama 70B (Llama создана компанией Meta - запрещена в РФ)\n"
     )
 
 
@@ -248,8 +253,8 @@ def main() -> None:
         MessageHandler(filters.VOICE & ~filters.COMMAND, voice_handler)
     )
     application.add_handler(CommandHandler("art", art_handler))
-    application.add_handler(CommandHandler("text", text_handler))
-    application.add_handler(CommandHandler("llama", text_handler))
+    application.add_handler(CommandHandler("y", text_handler))
+    application.add_handler(CommandHandler("l", text_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
