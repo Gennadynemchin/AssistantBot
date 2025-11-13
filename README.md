@@ -102,4 +102,4 @@ authorized_key.json
 ```
 `docker build -t <IMAGE NAME> .`
 
-`docker run -d --name assistant-bot --env-file .env -v ./authorized_key.json:/app/authorized_key.json --restart always assistant_bot:latest`
+`docker run -d --name assistant-bot --env-file .env -v ./authorized_key.json:/app/credentials/authorized_key.json --restart always assistant_bot:latest`
