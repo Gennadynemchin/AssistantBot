@@ -15,6 +15,7 @@ SA_KEY_FILE = os.getenv("SA_KEY_FILE")
 
 ART_TOKEN = os.getenv("ART_TOKEN")
 FOLDER_ID = os.getenv("FOLDER_ID")
+RECOGNIZE_TOKEN = os.getenv("RECOGNIZE_TOKEN")
 
 
 session = boto3.session.Session()

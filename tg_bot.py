@@ -167,8 +167,7 @@ async def art_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 @user_check()
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     models = {
-                "y": "yandexgpt",
-                "l": "llama"
+                "y": "yandexgpt"
             }
     token = ART_TOKEN.split(" ")[1]
     user_input = " ".join(context.args)
@@ -233,7 +232,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/start - зпуск бота\n"
         "/art - запрос на генерацию картинки. Через пробел от команды пишется запрос\n"
         "/y - запрос на генерацию текста. Через пробел от команды пишется запрос. YandexGPT Pro\n"
-        "/l - запрос на генерацию текста. Через пробел от команды пишется запрос. Llama 70B (Llama создана компанией Meta - запрещена в РФ)\n"
     )
 
 
@@ -254,7 +252,7 @@ def main() -> None:
     )
     application.add_handler(CommandHandler("art", art_handler))
     application.add_handler(CommandHandler("y", text_handler))
-    application.add_handler(CommandHandler("l", text_handler))
+    application.add_handler(CommandHandler("q", text_handler))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
