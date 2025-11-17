@@ -229,7 +229,7 @@ async def reply_handler(
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Команды бота:\n"
-        "/start - зпуск бота\n"
+        "/start - запуск бота\n"
         "/art - запрос на генерацию картинки. Через пробел от команды пишется запрос\n"
         "/y - запрос на генерацию текста. Через пробел от команды пишется запрос. YandexGPT Pro\n"
     )
